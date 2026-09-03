@@ -1,0 +1,79 @@
+import torch.nn as nn
+import torch
+
+
+#读取文本
+with open(r'C:\Users\Administrator\Desktop\新建文件夹 (2)\2.txt','r',encoding = 'utf-8') as n:
+    A_text = n.read().strip()
+#转数据
+
+chars = sorted(set(A_text))
+word_to_idx = {ch : i for i,ch in enumerate(chars)}
+idx_to_word = {i : ch for ch,i in word_to_idx.items()}
+long = len(word_to_idx)
+
+#训练数据
+X_data,y_data = [],[]
+
+indices = [word_to_idx[ch] for ch in A_text]
+for i in range(1,len(indices)):
+
+    X_data.append(indices[:i])
+    y_data.append(indices[i])
+#填充长度
+max_len = max(len(seq) for seq in X_data)
+X_padded = [seq + [0] *(max_len - len(seq)) for seq in X_data]
+
+X = torch.tensor(X_padded,dtype = torch.long)
+y = torch.tensor(y_data,dtype = torch.long)
+print(X.max().item())
+print(long)
+print(X.max().item()>= long)
+#定义模型
+class MiniLanguageModelLSTM(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.embedding = nn.Embedding(long,32)
+        self.rnn = nn.LSTM(input_size=32,hidden_size=64,num_layers=1,batch_first = True)
+        self.fc = nn.Linear(64,long)
+
+    def forward(self,X):
+        embedded = self.embedding(X)
+        output,(hidden,cell) = self.rnn(embedded)
+        last_output = output[:,-1,:]
+        return self.fc(last_output)
+#训练
+model = MiniLanguageModelLSTM()
+optimizer = torch.optim.SGD(model.parameters(),lr=0.01)
+loss_fn = torch.nn.CrossEntropyLoss()
+
+for step in range(3000):
+    pred = model(X)
+    loss = loss_fn(pred,y)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+    if step % 50 == 0:
+        print(f'步数{step},损失{loss.item():.3f}')
+#输出
+def generate(seed,length=20):
+    current = [word_to_idx[seed]]
+
+    with torch.no_grad():
+        for a in range(length):
+            input_tensor = torch.tensor([current])
+            output = model(input_tensor)
+            next_idx = output.argmax(dim = 1).item()
+            current.append(next_idx)
+
+    return ''.join([idx_to_word[i] for i in current])
+#交互
+questions = str(input("输入对话内容："))
+last_char = questions[-1]
+if last_char in word_to_idx:
+
+    print(generate(last_char,20))
+
+
